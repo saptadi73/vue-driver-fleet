@@ -1,0 +1,487 @@
+@import 'tailwindcss';
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #f6f7ef;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.login-screen {
+  display: grid;
+  min-height: 100vh;
+  padding: 18px;
+  align-items: end;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-art {
+  position: absolute;
+  inset: 0;
+  min-height: 46vh;
+  background:
+    linear-gradient(140deg, rgba(23, 124, 112, 0.92), rgba(35, 45, 48, 0.86)),
+    url("https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1200&q=80") center/cover;
+}
+
+.route-line {
+  position: absolute;
+  left: 11%;
+  right: 11%;
+  bottom: 24%;
+  height: 5px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #f7c948, #ffffff, #50d8b8);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+}
+
+.truck-mark {
+  position: absolute;
+  right: 24px;
+  top: 24px;
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 900;
+  letter-spacing: 0;
+  background: rgba(255, 255, 255, 0.13);
+  backdrop-filter: blur(12px);
+}
+
+.login-panel {
+  position: relative;
+  display: grid;
+  gap: 15px;
+  width: min(100%, 440px);
+  margin: 0 auto;
+  padding: 24px;
+  border: 1px solid rgba(25, 32, 31, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 70px rgba(31, 45, 43, 0.22);
+}
+
+.login-panel h1,
+.driver-header h1,
+.booking-hero h1 {
+  margin: 0;
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.login-panel h1 {
+  max-width: 11ch;
+  font-size: clamp(2.25rem, 12vw, 3.8rem);
+}
+
+.login-copy {
+  margin: 0 0 8px;
+  color: #53615e;
+  line-height: 1.55;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #187c70;
+  font-size: 0.75rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+label {
+  display: grid;
+  gap: 7px;
+  color: #3a4744;
+  font-size: 0.83rem;
+  font-weight: 800;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #d9dfd5;
+  border-radius: 8px;
+  padding: 12px 13px;
+  color: #19201f;
+  background: #fff;
+  outline: none;
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #177c70;
+  box-shadow: 0 0 0 4px rgba(23, 124, 112, 0.13);
+}
+
+.primary-button,
+.secondary-button,
+.ghost-button,
+.plain-button,
+.card-button,
+.back-button,
+.pagination button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 16px;
+  font-weight: 900;
+}
+
+.primary-button {
+  color: #fff;
+  background: #19201f;
+  box-shadow: 0 12px 28px rgba(25, 32, 31, 0.2);
+}
+
+.secondary-button,
+.card-button,
+.pagination button {
+  color: #fff;
+  background: #177c70;
+}
+
+.ghost-button,
+.plain-button,
+.back-button {
+  color: #19201f;
+  background: #e7ecdf;
+}
+
+.app-shell {
+  width: min(100%, 760px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 18px 14px 28px;
+}
+
+.driver-header {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 2px 18px;
+}
+
+.driver-header h1 {
+  font-size: clamp(1.8rem, 8vw, 2.8rem);
+}
+
+.alert {
+  margin: 0 0 14px;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.alert.error {
+  color: #7a2015;
+  background: #ffe1d6;
+}
+
+.alert.success {
+  color: #185c39;
+  background: #dff7df;
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 40px rgba(33, 47, 43, 0.08);
+}
+
+.toolbar-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.summary-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.summary-strip div {
+  display: grid;
+  gap: 2px;
+  padding: 14px;
+  border-radius: 8px;
+  color: #19201f;
+  background: #f7ca45;
+}
+
+.summary-strip div:last-child {
+  background: #cdeee6;
+}
+
+.summary-strip strong {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.summary-strip span {
+  color: rgba(25, 32, 31, 0.74);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.booking-list {
+  display: grid;
+  gap: 12px;
+}
+
+.booking-card,
+.empty-state {
+  border: 1px solid rgba(25, 32, 31, 0.08);
+  border-radius: 8px;
+  padding: 15px;
+  background: #fff;
+  box-shadow: 0 14px 36px rgba(33, 47, 43, 0.07);
+}
+
+.booking-topline,
+.hero-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  color: #66736f;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.status-pill {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 10px;
+  color: #123d38;
+  background: #cdeee6;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.booking-card h2 {
+  margin: 12px 0 4px;
+  font-size: 1.28rem;
+  line-height: 1.1;
+}
+
+.booking-card p,
+.booking-hero p {
+  margin: 0;
+  color: #53615e;
+  line-height: 1.45;
+}
+
+.booking-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.booking-card dl div {
+  min-width: 0;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f3f5ef;
+}
+
+.booking-card dt {
+  color: #71807b;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.booking-card dd {
+  overflow: hidden;
+  margin: 4px 0 0;
+  color: #19201f;
+  font-size: 0.85rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-button {
+  width: 100%;
+}
+
+.empty-state {
+  color: #53615e;
+  font-weight: 800;
+  text-align: center;
+}
+
+.pagination {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.pagination span {
+  color: #53615e;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.back-button {
+  margin-bottom: 14px;
+}
+
+.booking-hero {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 18px;
+  border-radius: 8px;
+  color: #fff;
+  background:
+    linear-gradient(135deg, rgba(25, 32, 31, 0.95), rgba(28, 89, 82, 0.88)),
+    url("https://images.unsplash.com/photo-1485575301924-6891ef935dcd?auto=format&fit=crop&w=1000&q=80") center/cover;
+  box-shadow: 0 18px 46px rgba(25, 32, 31, 0.16);
+}
+
+.booking-hero h1 {
+  font-size: clamp(2rem, 10vw, 3.2rem);
+}
+
+.booking-hero p,
+.booking-hero .hero-meta {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.update-form {
+  display: grid;
+  gap: 13px;
+  padding-bottom: 80px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.upload-box {
+  border: 1px dashed #9eb8ae;
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.upload-box input {
+  min-height: auto;
+  border: 0;
+  padding: 0;
+}
+
+.upload-box strong {
+  color: #177c70;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.confirm-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.confirm-row input {
+  width: 22px;
+  min-height: 22px;
+  accent-color: #177c70;
+}
+
+.sticky-submit {
+  position: fixed;
+  right: max(14px, calc((100vw - 760px) / 2 + 14px));
+  bottom: 14px;
+  left: max(14px, calc((100vw - 760px) / 2 + 14px));
+  z-index: 10;
+}
+
+@media (min-width: 720px) {
+  .login-screen {
+    align-items: center;
+    justify-items: end;
+    padding: 32px;
+  }
+
+  .login-art {
+    right: 28%;
+    min-height: 100vh;
+  }
+
+  .login-panel {
+    margin: 0;
+  }
+
+  .toolbar {
+    grid-template-columns: 1.3fr 0.8fr auto;
+    align-items: end;
+  }
+
+  .toolbar-actions {
+    min-width: 210px;
+  }
+
+  .booking-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .empty-state {
+    grid-column: 1 / -1;
+  }
+}
