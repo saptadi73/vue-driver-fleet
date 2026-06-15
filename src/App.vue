@@ -352,7 +352,7 @@ onMounted(loadContext)
       </div>
 
       <form class="login-panel" @submit.prevent="login">
-        <p class="eyebrow">Driver Fleet</p>
+        <p class="eyebrow">Sopir</p>
         <h1>Masuk ke Odoo Fleet</h1>
         <p class="login-copy">Kelola booking draft, lengkapi armada, dan upload surat jalan langsung dari HP.</p>
 
