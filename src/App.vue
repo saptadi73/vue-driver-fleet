@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import AppCard from './components/AppCard.vue'
+import AppDataTable from './components/AppDataTable.vue'
+import AppModal from './components/AppModal.vue'
 
 type OptionRef = {
   id: number
@@ -59,8 +62,10 @@ type LoginResponse = {
   driver?: DriverInfo
 }
 
+const productionBackendUrl = 'https://siskab.kanjabung.com'
+
 const loginForm = reactive({
-  host: localStorage.getItem('driverFleetHost') || '',
+  host: localStorage.getItem('driverFleetHost') || productionBackendUrl,
   db: localStorage.getItem('driverFleetDb') || '',
   login: localStorage.getItem('driverFleetLogin') || '',
   password: '',
@@ -83,45 +88,51 @@ const vehicles = ref<Vehicle[]>([])
 const products = ref<Product[]>([])
 const selectedBooking = ref<Booking | null>(null)
 const auth = ref<LoginResponse | null>(null)
-const search = ref('')
 const dateFilter = ref('')
-const page = ref(1)
-const limit = ref(8)
-const total = ref(0)
 const loading = ref(false)
 const saving = ref(false)
 const loginLoading = ref(false)
+const bookingModalOpen = ref(false)
 const error = ref('')
 const success = ref('')
-const activeView = ref<'login' | 'list' | 'form'>('login')
+const activeView = ref<'login' | 'list'>('login')
 
-const driverName = computed(() => auth.value?.driver?.name || auth.value?.employee?.name || auth.value?.user?.name || 'Driver')
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredBookings.value.length / limit.value)))
+const driverName = computed(
+  () =>
+    auth.value?.driver?.name || auth.value?.employee?.name || auth.value?.user?.name || 'Driver',
+)
 
 const filteredBookings = computed(() => {
   return bookings.value.filter((booking) => {
-    const haystack = [
-      booking.name,
-      booking.destination,
-      booking.destination_id?.name,
-      booking.product_id?.name,
-      booking.vehicle_id?.name,
-      booking.customer_id?.name,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-
-    const matchesSearch = !search.value || haystack.includes(search.value.toLowerCase())
-    const matchesDate = !dateFilter.value || normalizeDate(getBookingDate(booking)) === dateFilter.value
-    return matchesSearch && matchesDate
+    const matchesDate =
+      !dateFilter.value || normalizeDate(getBookingDate(booking)) === dateFilter.value
+    return matchesDate
   })
 })
 
-const visibleBookings = computed(() => {
-  const start = (page.value - 1) * limit.value
-  return filteredBookings.value.slice(start, start + limit.value)
-})
+const bookingColumns = [
+  { key: 'name', label: 'Booking' },
+  { key: 'date', label: 'Tanggal' },
+  { key: 'destination', label: 'Tujuan' },
+  { key: 'product', label: 'Produk' },
+  { key: 'quantity', label: 'Qty' },
+  { key: 'vehicle', label: 'Armada' },
+  { key: 'state', label: 'Status' },
+  { key: 'action', label: '' },
+]
+
+const tableRows = computed(() =>
+  filteredBookings.value.map((booking) => ({
+    id: booking.id,
+    name: booking.name,
+    date: displayDate(getBookingDate(booking)),
+    destination: booking.destination || booking.destination_id?.name || 'Tujuan belum diisi',
+    product: booking.product_id?.name || '-',
+    quantity: moneylessNumber(booking.quantity),
+    vehicle: booking.vehicle_id?.name || booking.vehicle?.license_plate || '-',
+    state: booking.state || 'draft',
+  })),
+)
 
 async function rpc<T>(path: string, params: Record<string, unknown> = {}): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
@@ -133,7 +144,8 @@ async function rpc<T>(path: string, params: Record<string, unknown> = {}): Promi
 
   const data = await response.json().catch(() => ({}))
   if (!response.ok || data.error) {
-    const message = data.error?.data?.message || data.error?.message || data.message || 'Request gagal diproses.'
+    const message =
+      data.error?.data?.message || data.error?.message || data.message || 'Request gagal diproses.'
     throw new Error(message)
   }
 
@@ -210,16 +222,16 @@ async function loadBookings() {
   loading.value = true
 
   try {
-    const result = await rpc<{ bookings?: Booking[]; total?: number; count?: number }>('/api/fleet/driver/bookings', {
-      page: 1,
-      limit: 100,
-      search: search.value || undefined,
-      states: ['draft'],
-    })
+    const result = await rpc<{ bookings?: Booking[]; total?: number; count?: number }>(
+      '/api/fleet/driver/bookings',
+      {
+        page: 1,
+        limit: 100,
+        states: ['draft'],
+      },
+    )
 
     bookings.value = result.bookings || []
-    total.value = result.total || result.count || bookings.value.length
-    page.value = 1
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Daftar booking gagal dimuat.'
   } finally {
@@ -260,7 +272,7 @@ async function openBooking(booking: Booking) {
 
     selectedBooking.value = detail.booking
     fillUpdateForm(detail.booking)
-    activeView.value = 'form'
+    bookingModalOpen.value = true
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Detail booking gagal dibuka.'
   } finally {
@@ -315,8 +327,10 @@ async function submitBooking() {
       confirm: updateForm.confirm,
     })
 
-    success.value = updateForm.confirm ? 'Booking berhasil diupdate dan dikonfirmasi.' : 'Booking berhasil disimpan.'
-    activeView.value = 'list'
+    success.value = updateForm.confirm
+      ? 'Booking berhasil diupdate dan dikonfirmasi.'
+      : 'Booking berhasil disimpan.'
+    bookingModalOpen.value = false
     selectedBooking.value = null
     await loadBookings()
   } catch (err) {
@@ -330,14 +344,18 @@ function logout() {
   auth.value = null
   bookings.value = []
   selectedBooking.value = null
+  bookingModalOpen.value = false
   activeView.value = 'login'
 }
 
 function clearFilters() {
-  search.value = ''
   dateFilter.value = ''
-  page.value = 1
   void loadBookings()
+}
+
+function openBookingFromRow(row: Record<string, unknown>) {
+  const booking = filteredBookings.value.find((item) => item.id === row.id)
+  if (booking) void openBooking(booking)
 }
 
 onMounted(loadContext)
@@ -354,7 +372,9 @@ onMounted(loadContext)
       <form class="login-panel" @submit.prevent="login">
         <p class="eyebrow">Sopir</p>
         <h1>Masuk ke Odoo Fleet</h1>
-        <p class="login-copy">Kelola booking draft, lengkapi armada, dan upload surat jalan langsung dari HP.</p>
+        <p class="login-copy">
+          Kelola booking draft, lengkapi armada, dan upload surat jalan langsung dari HP.
+        </p>
 
         <label>
           Odoo Host URL
@@ -369,12 +389,24 @@ onMounted(loadContext)
 
         <label>
           Database
-          <input v-model="loginForm.db" type="text" autocomplete="organization" placeholder="nama_database" required />
+          <input
+            v-model="loginForm.db"
+            type="text"
+            autocomplete="organization"
+            placeholder="nama_database"
+            required
+          />
         </label>
 
         <label>
           Email / Login
-          <input v-model="loginForm.login" type="text" autocomplete="username" placeholder="driver@example.com" required />
+          <input
+            v-model="loginForm.login"
+            type="text"
+            autocomplete="username"
+            placeholder="driver@example.com"
+            required
+          />
         </label>
 
         <label>
@@ -391,6 +423,7 @@ onMounted(loadContext)
         <p v-if="error" class="alert error">{{ error }}</p>
 
         <button class="primary-button" type="submit" :disabled="loginLoading">
+          <span v-if="loginLoading" class="button-spinner" aria-hidden="true"></span>
           {{ loginLoading ? 'Menghubungkan...' : 'Login' }}
         </button>
       </form>
@@ -405,105 +438,111 @@ onMounted(loadContext)
         <button class="ghost-button" type="button" @click="logout">Keluar</button>
       </header>
 
-      <p v-if="error" class="alert error">{{ error }}</p>
+      <p v-if="error && !bookingModalOpen" class="alert error">{{ error }}</p>
       <p v-if="success" class="alert success">{{ success }}</p>
 
       <template v-if="activeView === 'list'">
-        <section class="toolbar">
-          <label class="search-box">
-            Cari booking
-            <input
-              v-model="search"
-              type="search"
-              placeholder="Nomor, tujuan, produk..."
-              @input="page = 1"
-              @keyup.enter="loadBookings"
-            />
-          </label>
-
+        <AppCard class="toolbar">
           <label class="date-box">
-            Tanggal
-            <input v-model="dateFilter" type="date" @change="page = 1" />
+            Tanggal booking
+            <input v-model="dateFilter" type="date" />
           </label>
 
           <div class="toolbar-actions">
-            <button class="secondary-button" type="button" @click="loadBookings">Refresh</button>
-            <button class="plain-button" type="button" @click="clearFilters">Reset</button>
+            <button
+              class="secondary-button"
+              type="button"
+              :disabled="loading"
+              @click="loadBookings"
+            >
+              <span v-if="loading" class="button-spinner" aria-hidden="true"></span>
+              {{ loading ? 'Memuat...' : 'Refresh' }}
+            </button>
+            <button class="plain-button" type="button" @click="clearFilters">Reset tanggal</button>
           </div>
-        </section>
+        </AppCard>
 
-        <section class="summary-strip">
-          <div>
-            <strong>{{ filteredBookings.length }}</strong>
-            <span>Draft tersedia</span>
-          </div>
-          <div>
-            <strong>{{ page }}/{{ totalPages }}</strong>
-            <span>Halaman</span>
-          </div>
-        </section>
-
-        <section class="booking-list" aria-live="polite">
-          <article v-if="loading" class="empty-state">Memuat booking...</article>
-
-          <article v-for="booking in visibleBookings" :key="booking.id" class="booking-card">
-            <div class="booking-topline">
-              <span class="status-pill">{{ booking.state || 'draft' }}</span>
-              <span>{{ displayDate(getBookingDate(booking)) }}</span>
+        <section class="summary-strip" aria-live="polite">
+          <AppCard class="summary-card">
+            <span class="summary-icon" aria-hidden="true">↗</span>
+            <div>
+              <strong>{{ loading ? '—' : filteredBookings.length }}</strong>
+              <span>Draft tersedia</span>
             </div>
-            <h2>{{ booking.name }}</h2>
-            <p>{{ booking.destination || booking.destination_id?.name || 'Tujuan belum diisi' }}</p>
-
-            <dl>
-              <div>
-                <dt>Produk</dt>
-                <dd>{{ booking.product_id?.name || '-' }}</dd>
-              </div>
-              <div>
-                <dt>Qty</dt>
-                <dd>{{ moneylessNumber(booking.quantity) }}</dd>
-              </div>
-              <div>
-                <dt>Armada</dt>
-                <dd>{{ booking.vehicle_id?.name || booking.vehicle?.license_plate || '-' }}</dd>
-              </div>
-            </dl>
-
-            <button class="card-button" type="button" @click="openBooking(booking)">Update Booking</button>
-          </article>
-
-          <article v-if="!loading && !visibleBookings.length" class="empty-state">
-            Tidak ada booking yang cocok dengan filter.
-          </article>
+          </AppCard>
+          <AppCard class="summary-card summary-card-muted">
+            <span class="summary-icon" aria-hidden="true">◎</span>
+            <div>
+              <strong>{{ dateFilter ? displayDate(dateFilter) : 'Semua tanggal' }}</strong>
+              <span>Filter tanggal</span>
+            </div>
+          </AppCard>
         </section>
 
-        <nav class="pagination" aria-label="Pagination">
-          <button type="button" :disabled="page <= 1" @click="page--">Sebelumnya</button>
-          <span>{{ page }} dari {{ totalPages }}</span>
-          <button type="button" :disabled="page >= totalPages" @click="page++">Berikutnya</button>
-        </nav>
+        <AppCard class="table-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Daftar operasional</p>
+              <h2>Booking aktif</h2>
+            </div>
+            <span class="table-hint">Pilih booking untuk memperbarui detail</span>
+          </div>
+          <AppDataTable
+            :columns="bookingColumns"
+            :rows="tableRows"
+            :loading="loading"
+            search-placeholder="Cari nomor, tujuan, produk..."
+          >
+            <template #cell-name="{ row }">
+              <strong class="booking-number">{{ row.name }}</strong>
+            </template>
+            <template #cell-state="{ row }">
+              <span class="status-pill">{{ row.state }}</span>
+            </template>
+            <template #cell-action="{ row }">
+              <button
+                class="table-action"
+                type="button"
+                :disabled="loading"
+                @click="openBookingFromRow(row)"
+              >
+                Perbarui
+              </button>
+            </template>
+          </AppDataTable>
+        </AppCard>
       </template>
 
-      <template v-else-if="activeView === 'form' && selectedBooking">
-        <button class="back-button" type="button" @click="activeView = 'list'">Kembali ke daftar</button>
-
-        <section class="booking-hero">
+      <AppModal
+        v-if="selectedBooking"
+        v-model="bookingModalOpen"
+        :title="`Perbarui ${selectedBooking.name}`"
+      >
+        <div class="booking-hero">
           <span class="status-pill">{{ selectedBooking.state || 'draft' }}</span>
           <h1>{{ selectedBooking.name }}</h1>
-          <p>{{ selectedBooking.destination || selectedBooking.destination_id?.name || 'Tujuan belum diisi' }}</p>
+          <p>
+            {{
+              selectedBooking.destination ||
+              selectedBooking.destination_id?.name ||
+              'Tujuan belum diisi'
+            }}
+          </p>
           <div class="hero-meta">
             <span>{{ displayDate(getBookingDate(selectedBooking)) }}</span>
             <span>{{ selectedBooking.product_id?.name || 'Produk belum dipilih' }}</span>
           </div>
-        </section>
+        </div>
 
+        <p v-if="error" class="alert error">{{ error }}</p>
         <form class="update-form" @submit.prevent="submitBooking">
           <label>
             Armada
             <select v-model="updateForm.vehicle_id" required>
               <option value="" disabled>Pilih armada</option>
               <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
-                {{ vehicle.license_plate || vehicle.name }} - {{ vehicle.model_id?.name || vehicle.brand_id?.name || 'Fleet' }}
+                {{ vehicle.license_plate || vehicle.name }} -
+                {{ vehicle.model_id?.name || vehicle.brand_id?.name || 'Fleet' }}
               </option>
             </select>
           </label>
@@ -521,12 +560,26 @@ onMounted(loadContext)
           <div class="form-grid">
             <label>
               Quantity
-              <input v-model="updateForm.quantity" type="number" min="0" step="0.01" inputmode="decimal" required />
+              <input
+                v-model="updateForm.quantity"
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                required
+              />
             </label>
 
             <label>
               KM
-              <input v-model="updateForm.km" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+              <input
+                v-model="updateForm.km"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                placeholder="0"
+              />
             </label>
           </div>
 
@@ -538,12 +591,18 @@ onMounted(loadContext)
           <label class="upload-box">
             <span>Upload Surat Jalan</span>
             <input type="file" accept="image/*,.pdf" @change="fileToBase64" />
-            <strong>{{ updateForm.delivery_order_filename || 'Pilih foto/PDF surat jalan' }}</strong>
+            <strong>{{
+              updateForm.delivery_order_filename || 'Pilih foto/PDF surat jalan'
+            }}</strong>
           </label>
 
           <label>
             Catatan Sopir
-            <textarea v-model="updateForm.note" rows="4" placeholder="Catatan operasional, kendala, atau instruksi tambahan" />
+            <textarea
+              v-model="updateForm.note"
+              rows="4"
+              placeholder="Catatan operasional, kendala, atau instruksi tambahan"
+            />
           </label>
 
           <label class="confirm-row">
@@ -552,10 +611,13 @@ onMounted(loadContext)
           </label>
 
           <button class="primary-button sticky-submit" type="submit" :disabled="saving">
-            {{ saving ? 'Menyimpan...' : updateForm.confirm ? 'Update & Konfirmasi' : 'Simpan Draft' }}
+            <span v-if="saving" class="button-spinner" aria-hidden="true"></span>
+            {{
+              saving ? 'Menyimpan...' : updateForm.confirm ? 'Update & Konfirmasi' : 'Simpan Draft'
+            }}
           </button>
         </form>
-      </template>
+      </AppModal>
     </section>
   </main>
 </template>
