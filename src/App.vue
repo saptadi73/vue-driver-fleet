@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import AppCard from './components/AppCard.vue'
 import AppDataTable from './components/AppDataTable.vue'
 import AppModal from './components/AppModal.vue'
+import { bookingDate, buildDriverUpdatePayload, formatScheduleDateTime, groupFleetBookings, isVehicleLocked, unwrapFleetResponse } from './lib/fleet'
 
 type OptionRef = {
   id: number
@@ -38,9 +39,17 @@ type Product = {
 type Booking = {
   id: number
   name: string
+  trip_number?: string
   state?: string
   date?: string
   booking_date?: string
+  trip_date?: string
+  departure_datetime?: string
+  arrival_datetime?: string
+  departure_region_id?: OptionRef
+  destination_region_id?: OptionRef
+  vehicle_locked?: boolean
+  delivery_order_filename?: string
   date_order?: string
   scheduled_date?: string
   destination?: string
@@ -80,7 +89,7 @@ const updateForm = reactive({
   delivery_order_filename: '',
   delivery_order_file: '',
   note: '',
-  confirm: true,
+  confirm: false,
 })
 
 const bookings = ref<Booking[]>([])
@@ -111,8 +120,11 @@ const filteredBookings = computed(() => {
 })
 
 const bookingColumns = [
+  { key: 'trip_number', label: 'No. Trip/Leg' },
   { key: 'name', label: 'Booking' },
   { key: 'date', label: 'Tanggal' },
+  { key: 'departure', label: 'Berangkat' },
+  { key: 'origin', label: 'Asal' },
   { key: 'destination', label: 'Tujuan' },
   { key: 'product', label: 'Produk' },
   { key: 'quantity', label: 'Qty' },
@@ -122,17 +134,22 @@ const bookingColumns = [
 ]
 
 const tableRows = computed(() =>
-  filteredBookings.value.map((booking) => ({
+  groupFleetBookings(filteredBookings.value).flatMap((group) => group.bookings.map((booking) => ({
     id: booking.id,
+    trip_number: booking.trip_number || booking.name,
+    trip_group: `${group.vehicle} · ${displayDate(group.date)} · ${group.bookings.length} trip`,
     name: booking.name,
     date: displayDate(getBookingDate(booking)),
-    destination: booking.destination || booking.destination_id?.name || 'Tujuan belum diisi',
+    departure: displayDeparture(booking.departure_datetime),
+    origin: booking.departure_region_id?.name || 'Asal belum diisi',
+    destination: booking.destination_region_id?.name || booking.destination || booking.destination_id?.name || 'Tujuan belum diisi',
     product: booking.product_id?.name || '-',
     quantity: moneylessNumber(booking.quantity),
     vehicle: booking.vehicle_id?.name || booking.vehicle?.license_plate || '-',
     state: booking.state || 'draft',
-  })),
+  }))),
 )
+const vehicleLocked = computed(() => isVehicleLocked(selectedBooking.value))
 
 async function rpc<T>(path: string, params: Record<string, unknown> = {}): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
@@ -143,13 +160,13 @@ async function rpc<T>(path: string, params: Record<string, unknown> = {}): Promi
   })
 
   const data = await response.json().catch(() => ({}))
-  if (!response.ok || data.error) {
+  if (!response.ok) {
     const message =
       data.error?.data?.message || data.error?.message || data.message || 'Request gagal diproses.'
     throw new Error(message)
   }
 
-  return (data.result || data) as T
+  return unwrapFleetResponse<T>(data)
 }
 
 function buildApiUrl(path: string) {
@@ -158,7 +175,16 @@ function buildApiUrl(path: string) {
 }
 
 function getBookingDate(booking: Booking) {
-  return booking.booking_date || booking.date || booking.date_order || booking.scheduled_date || ''
+  return bookingDate(booking)
+}
+
+function displayDeparture(value?: string) {
+  if (!value) return '-'
+  const utc = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value) ? value : `${value.replace(' ', 'T')}Z`
+  const date = new Date(utc)
+  return Number.isNaN(date.getTime()) ? '-' : new Intl.DateTimeFormat('id-ID', {
+    hour: '2-digit', minute: '2-digit',
+  }).format(date)
 }
 
 function normalizeDate(value = '') {
@@ -222,16 +248,20 @@ async function loadBookings() {
   loading.value = true
 
   try {
-    const result = await rpc<{ bookings?: Booking[]; total?: number; count?: number }>(
-      '/api/fleet/driver/bookings',
-      {
-        page: 1,
-        limit: 100,
-        states: ['draft'],
-      },
-    )
-
-    bookings.value = result.bookings || []
+    const collected = new Map<number, Booking>()
+    let page = 1
+    while (true) {
+      const result = await rpc<{ bookings?: Booking[]; total?: number }>(
+        '/api/fleet/driver/bookings', { page, limit: 100, states: ['draft'] },
+      )
+      const rows = result.bookings || []
+      const previousSize = collected.size
+      rows.forEach((booking) => collected.set(booking.id, booking))
+      if (!rows.length || collected.size >= (result.total ?? rows.length)) break
+      if (collected.size === previousSize) throw new Error('Pagination booking tidak bergerak. Muat ulang daftar.')
+      page += 1
+    }
+    bookings.value = [...collected.values()]
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Daftar booking gagal dimuat.'
   } finally {
@@ -248,7 +278,6 @@ async function loadDropdowns() {
     driver?: DriverInfo
   }>('/api/fleet/driver/dropdowns', {
     limit: 200,
-    include_uncategorized: true,
   })
 
   vehicles.value = result.vehicles || []
@@ -289,7 +318,7 @@ function fillUpdateForm(booking: Booking) {
   updateForm.delivery_order_filename = ''
   updateForm.delivery_order_file = ''
   updateForm.note = booking.note || ''
-  updateForm.confirm = true
+  updateForm.confirm = false
 }
 
 async function fileToBase64(event: Event) {
@@ -314,18 +343,7 @@ async function submitBooking() {
   saving.value = true
 
   try {
-    await rpc('/api/fleet/driver/bookings/update', {
-      booking_id: selectedBooking.value.id,
-      vehicle_id: Number(updateForm.vehicle_id),
-      product_id: Number(updateForm.product_id),
-      quantity: Number(updateForm.quantity || 0),
-      km: updateForm.km ? Number(updateForm.km) : undefined,
-      delivery_order_number: updateForm.delivery_order_number || undefined,
-      delivery_order_filename: updateForm.delivery_order_filename || undefined,
-      delivery_order_file: updateForm.delivery_order_file || undefined,
-      note: updateForm.note || undefined,
-      confirm: updateForm.confirm,
-    })
+    await rpc('/api/fleet/driver/bookings/update', buildDriverUpdatePayload(selectedBooking.value, updateForm))
 
     success.value = updateForm.confirm
       ? 'Booking berhasil diupdate dan dikonfirmasi.'
@@ -444,7 +462,7 @@ onMounted(loadContext)
       <template v-if="activeView === 'list'">
         <AppCard class="toolbar">
           <label class="date-box">
-            Tanggal booking
+            Tanggal trip
             <input v-model="dateFilter" type="date" />
           </label>
 
@@ -491,6 +509,7 @@ onMounted(loadContext)
             :columns="bookingColumns"
             :rows="tableRows"
             :loading="loading"
+            group-by="trip_group"
             search-placeholder="Cari nomor, tujuan, produk..."
           >
             <template #cell-name="{ row }">
@@ -521,9 +540,10 @@ onMounted(loadContext)
         <div class="booking-hero">
           <span class="status-pill">{{ selectedBooking.state || 'draft' }}</span>
           <h1>{{ selectedBooking.name }}</h1>
+          <p>{{ selectedBooking.trip_number || selectedBooking.name }}</p>
           <p>
             {{
-              selectedBooking.destination ||
+              selectedBooking.destination_region_id?.name || selectedBooking.destination ||
               selectedBooking.destination_id?.name ||
               'Tujuan belum diisi'
             }}
@@ -536,15 +556,23 @@ onMounted(loadContext)
 
         <p v-if="error" class="alert error">{{ error }}</p>
         <form class="update-form" @submit.prevent="submitBooking">
+          <div class="form-grid">
+            <label>Wilayah asal<input :value="selectedBooking.departure_region_id?.name || 'Belum diisi admin'" readonly /></label>
+            <label>Wilayah tujuan<input :value="selectedBooking.destination_region_id?.name || 'Belum diisi admin'" readonly /></label>
+          </div>
+          <p class="table-hint">Rute ditentukan oleh admin. Berangkat: {{ formatScheduleDateTime(selectedBooking.departure_datetime) }}.
+            Estimasi selesai: {{ formatScheduleDateTime(selectedBooking.arrival_datetime) }}.</p>
           <label>
             Armada
-            <select v-model="updateForm.vehicle_id" required>
+            <input v-if="vehicleLocked" :value="selectedBooking.vehicle?.license_plate || selectedBooking.vehicle_id?.name || selectedBooking.vehicle?.name" readonly />
+            <select v-else v-model="updateForm.vehicle_id" required>
               <option value="" disabled>Pilih armada</option>
               <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
                 {{ vehicle.license_plate || vehicle.name }} -
                 {{ vehicle.model_id?.name || vehicle.brand_id?.name || 'Fleet' }}
               </option>
             </select>
+            <small v-if="vehicleLocked">Armada ditetapkan admin dan tidak dapat diganti.</small>
           </label>
 
           <label>
@@ -594,6 +622,7 @@ onMounted(loadContext)
             <strong>{{
               updateForm.delivery_order_filename || 'Pilih foto/PDF surat jalan'
             }}</strong>
+            <small v-if="selectedBooking.delivery_order_filename">Tersimpan: {{ selectedBooking.delivery_order_filename }}</small>
           </label>
 
           <label>

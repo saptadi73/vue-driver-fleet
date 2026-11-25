@@ -14,6 +14,7 @@ const props = withDefaults(
     loading?: boolean
     pageSize?: number
     searchPlaceholder?: string
+    groupBy?: string
   }>(),
   {
     loading: false,
@@ -45,6 +46,12 @@ const visibleRows = computed(() => {
   const start = (page.value - 1) * props.pageSize
   return filteredRows.value.slice(start, start + props.pageSize)
 })
+
+function groupLabel(row: Record<string, unknown>, index: number): string {
+  const key = props.groupBy
+  if (!key || (index > 0 && row[key] === visibleRows.value[index - 1]?.[key])) return ''
+  return String(row[key] ?? '')
+}
 
 watch([search, () => props.rows], () => {
   page.value = 1
@@ -81,13 +88,20 @@ watch(totalPages, (pages) => {
               </td>
             </tr>
           </template>
-          <tr v-for="(row, rowIndex) in visibleRows" v-else :key="String(row.id ?? rowIndex)">
-            <td v-for="column in columns" :key="column.key">
-              <slot :name="`cell-${column.key}`" :row="row">
-                {{ row[column.key] ?? '—' }}
-              </slot>
-            </td>
-          </tr>
+          <template v-else>
+            <template v-for="(row, rowIndex) in visibleRows" :key="String(row.id ?? rowIndex)">
+              <tr v-if="groupLabel(row, rowIndex)" class="trip-group-row">
+                <td :colspan="columns.length"><strong>{{ groupLabel(row, rowIndex) }}</strong></td>
+              </tr>
+              <tr>
+                <td v-for="column in columns" :key="column.key">
+                  <slot :name="`cell-${column.key}`" :row="row">
+                    {{ row[column.key] ?? '—' }}
+                  </slot>
+                </td>
+              </tr>
+            </template>
+          </template>
           <tr v-if="!loading && !visibleRows.length">
             <td class="table-empty" :colspan="columns.length">Tidak ada data yang cocok.</td>
           </tr>
@@ -112,3 +126,10 @@ watch(totalPages, (pages) => {
     </footer>
   </div>
 </template>
+
+<style scoped>
+.trip-group-row td {
+  background: #eef6f1;
+  color: #24503c;
+}
+</style>
