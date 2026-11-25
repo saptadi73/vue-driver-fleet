@@ -15,7 +15,11 @@ Commit telah dipush sebelum deployment.
 - HTTPS frontend dan login Odoo mendapat 200. Preflight API Fleet dari origin
   frontend mendapat 204 dengan origin yang benar dan credentials diizinkan.
 
-Backend Fleet `14.0.1.2.14` telah diuji pada database terisolasi, tetapi deployment
-backend masih menunggu push ke Git internal yang ditolak autentikasi. Field baru
-pada frontend bersifat opsional dengan fallback nomor booking. UAT session driver,
-upload filestore, dan konfirmasi pada backend aktual setelah upgrade masih terbuka.
+Backend Fleet `14.0.1.2.14` berhasil di-deploy dan di-upgrade setelah push Git
+internal berhasil pada 25 November 2026. Source backend `8b5d94e`, service Odoo
+aktif, dan data 5.893 booking lama terverifikasi tetap utuh selain penambahan nomor
+trip; waktu selesai historis tetap kosong. Backup database/filestore/modul dibuat
+sebelum upgrade. HTTPS Odoo/frontend, asset JS/CSS, dan preflight CORS lulus.
+
+UAT session driver, upload filestore, dan konfirmasi pada backend aktual tetap
+terbuka. Field frontend bersifat opsional dengan fallback nomor booking.
